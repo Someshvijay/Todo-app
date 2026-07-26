@@ -52,6 +52,8 @@ function App() {
     <div className="container">
       <h1>Todo App</h1>
 
+      <h4>Total Tasks: {todos.length}</h4>
+
       <TodoForm onAddTodo={handleAddTodo} />
 
       {loading ? (
@@ -62,6 +64,7 @@ function App() {
           onDelete={handleDeleteTodo}
         />
       )}
+    
     </div>
   );
 }
