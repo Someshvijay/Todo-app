@@ -1,39 +1,176 @@
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
+const pool = require("./db/database");
+require("dotenv").config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
-app.use(express.static("public"));
+/*
+  GET ALL TASKS
+*/
+app.get("/api/todos", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM tasks ORDER BY id ASC");
 
-let todos = [
-  { id: 1, text: "Learn HTML" },
-  { id: 2, text: "Build a Todo App" },
-];
-
-app.get("/api/todos", (req, res) => {
-  res.json(todos);
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to fetch tasks",
+    });
+  }
 });
 
-app.post("/api/todos", (req, res) => {
-  const todo = {
-    id: Date.now(),
-    text: req.body.text,
-  };
+/*
+  GET TASK BY ID
+*/
+app.get("/api/todos/:id", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM tasks WHERE id = $1", [
+      req.params.id,
+    ]);
 
-  todos.push(todo);
-  res.status(201).json(todo);
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Task not found",
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to fetch task",
+    });
+  }
 });
 
-app.delete("/api/todos/:id", (req, res) => {
-  todos = todos.filter((t) => t.id != req.params.id);
-  res.json({ message: "Todo deleted" });
+/*
+  CREATE TASK
+*/
+app.post("/api/todos", async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({
+        message: "Task title is required",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO tasks(title)
+      VALUES($1)
+      RETURNING *
+      `,
+      [text],
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to create task",
+    });
+  }
+});
+
+/*
+  UPDATE TASK
+*/
+app.put("/api/todos/:id", async (req, res) => {
+  try {
+    const { title, completed } = req.body;
+
+    const result = await pool.query(
+      `
+      UPDATE tasks
+      SET
+        title = COALESCE($1, title),
+        completed = COALESCE($2, completed)
+      WHERE id = $3
+      RETURNING *
+      `,
+      [title, completed, req.params.id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Task not found",
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to update task",
+    });
+  }
+});
+
+/*
+  MARK TASK COMPLETE
+*/
+app.patch("/api/todos/:id/complete", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      UPDATE tasks
+      SET completed = true
+      WHERE id = $1
+      RETURNING *
+      `,
+      [req.params.id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Task not found",
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to complete task",
+    });
+  }
+});
+
+/*
+  DELETE TASK
+*/
+app.delete("/api/todos/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "DELETE FROM tasks WHERE id = $1 RETURNING *",
+      [req.params.id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Task not found",
+      });
+    }
+
+    res.json({
+      message: "Task deleted successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to delete task",
+    });
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
