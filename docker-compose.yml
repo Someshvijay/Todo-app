@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
@@ -39,7 +37,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: http://localhost:3000
+      VITE_API_URL: ${CODESPACE_NAME:+https://${CODESPACE_NAME}-3000.app.github.dev}
     depends_on:
       - server
     volumes:

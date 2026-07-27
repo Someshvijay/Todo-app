@@ -1,7 +1,7 @@
 function TodoItem({ todo, onDelete }) {
   return (
     <li className="todo-item">
-      <span>{todo.text}</span>
+      <span>{todo.title}</span>
 
       <button
         onClick={() => onDelete(todo.id)}
