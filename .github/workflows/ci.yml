@@ -84,3 +84,28 @@ jobs:
           file: ./server/Dockerfile
           push: true
           tags: ghcr.io/${{ steps.vars.outputs.owner }}/todo-app-server:latest
+
+  deploy:
+    needs: build-images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ${{ secrets.EC2_PROJECT_PATH }}
+
+            cat > server/.env.docker << 'EOF'
+            ${{ secrets.ENV_DOCKER_CONTENTS }}
+            EOF
+
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+
+          
