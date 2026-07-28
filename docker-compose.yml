@@ -32,9 +32,7 @@ services:
     image: ghcr.io/someshvijay/todo-app-client:latest
     restart: unless-stopped
     ports:
-      - "5173:5173"
-    environment:
-      VITE_API_URL: http://13.207.171.80
+      - "5173:80"
     depends_on:
       - server
 
