@@ -7,7 +7,8 @@ const app = express();
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    /\.app\.github\.dev$/
+    /\.app\.github\.dev$/,
+    'http://13.207.171.80'
   ]
 }));
 app.use(express.json());
