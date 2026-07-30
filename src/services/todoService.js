@@ -11,20 +11,27 @@ export const getTodos = async () => {
   return response.json();
 };
 
-export const createTodo = async (text) => {
-  const response = await fetch(API_URL, {
+export const createTodo = async (text, date, timeOfDay, isImportant) => {
+  const res = await fetch(API_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ text }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, date, timeOfDay, isImportant }),
   });
+  return res.json();
+};
 
-  if (!response.ok) {
-    throw new Error("Failed to create todo");
-  }
+export const updateTodo = async (id, updates) => {
+  const res = await fetch(`${API_URL}/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  return res.json();
+};
 
-  return response.json();
+export const toggleComplete = async (id) => {
+  const res = await fetch(`${API_URL}/${id}/complete`, { method: "PATCH" });
+  return res.json();
 };
 
 export const deleteTodo = async (id) => {

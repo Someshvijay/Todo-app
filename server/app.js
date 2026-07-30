@@ -51,7 +51,7 @@ app.get("/api/todos/:id", async (req, res) => {
 */
 app.post("/api/todos", async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, date, timeOfDay, isImportant } = req.body;
 
     if (!text || !text.trim()) {
       return res.status(400).json({ message: "Task title is required" });
@@ -59,11 +59,11 @@ app.post("/api/todos", async (req, res) => {
 
     const result = await pool.query(
       `
-      INSERT INTO tasks(title)
-      VALUES($1)
+      INSERT INTO tasks(title, due_date, time_of_day, is_important)
+      VALUES($1, $2, $3, $4)
       RETURNING *
       `,
-      [text],
+      [text, date || null, timeOfDay || "day", isImportant || false],
     );
 
     res.status(201).json(result.rows[0]);
@@ -78,18 +78,21 @@ app.post("/api/todos", async (req, res) => {
 */
 app.put("/api/todos/:id", async (req, res) => {
   try {
-    const { title, completed } = req.body;
+    const { title, completed, date, timeOfDay, isImportant } = req.body;
 
     const result = await pool.query(
       `
       UPDATE tasks
       SET
         title = COALESCE($1, title),
-        completed = COALESCE($2, completed)
-      WHERE id = $3
+        completed = COALESCE($2, completed),
+        due_date = COALESCE($3, due_date),
+        time_of_day = COALESCE($4, time_of_day),
+        is_important = COALESCE($5, is_important)
+      WHERE id = $6
       RETURNING *
       `,
-      [title, completed, req.params.id],
+      [title, completed, date, timeOfDay, isImportant, req.params.id],
     );
 
     if (result.rows.length === 0) {
