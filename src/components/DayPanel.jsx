@@ -126,8 +126,8 @@ function DayPanel({ selectedDate, todos, onAdd, onUpdate, onToggle, onDelete }) 
         <button type="submit">+</button>
       </form>
 
-      {section("Day Job", "day")}
-      {section("Night Job", "night")}
+      {section("Day", "day")}
+      {section("Night", "night")}
     </div>
   );
 }

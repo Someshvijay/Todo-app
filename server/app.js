@@ -109,14 +109,18 @@ app.put("/api/todos/:id", async (req, res) => {
 /*
   MARK TASK COMPLETE
 */
+/*
+  TOGGLE TASK COMPLETE
+*/
 app.patch("/api/todos/:id/complete", async (req, res) => {
   try {
     const result = await pool.query(
       `
       UPDATE tasks
-      SET completed = true
+      SET completed = NOT completed
       WHERE id = $1
-      RETURNING *
+      RETURNING id, title, completed, time_of_day, is_important,
+                TO_CHAR(due_date, 'YYYY-MM-DD') AS due_date
       `,
       [req.params.id],
     );
@@ -128,7 +132,7 @@ app.patch("/api/todos/:id/complete", async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Failed to complete task" });
+    res.status(500).json({ message: "Failed to toggle task" });
   }
 });
 

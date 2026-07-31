@@ -107,7 +107,7 @@ describe("PUT /api/todos/:id", () => {
 });
 
 describe("PATCH /api/todos/:id/complete", () => {
-  test("returns 200 and marks the task complete", async () => {
+  test("returns 200 and toggles completion", async () => {
     const completedTask = { id: 1, title: "Buy milk", completed: true };
     pool.query.mockResolvedValueOnce({ rows: [completedTask] });
 

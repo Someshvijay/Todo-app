@@ -74,7 +74,8 @@ body {
 .p5-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  row-gap: 4px;
+  row-gap: 10px;
+  align-items: end;
   position: relative;
   z-index: 2;
 }
@@ -82,17 +83,21 @@ body {
 .p5-num {
   position: relative;
   cursor: pointer;
-  padding: 2px 0 10px;
-  transform: rotate(var(--tilt, 0deg)) skewX(-8deg);
+  padding: 2px 4px 12px;
+  display: flex;
+  align-items: flex-end;
+  min-height: 72px;
+  transform: skewX(-8deg);
   transition: transform 0.12s ease, filter 0.12s ease;
 }
 
 .p5-num.empty { cursor: default; }
 
 .p5-num-text {
+  position: relative;
   font-family: 'Anton', sans-serif;
   font-size: clamp(2.2rem, 4.2vw, 3.6rem);
-  line-height: 0.9;
+  line-height: 1;
   color: #f2f2f2;
   display: inline-block;
   text-shadow: 2px 2px 0 #000;
@@ -102,7 +107,7 @@ body {
 .p5-num.sat .p5-num-text { color: #3aa0ff; }
 
 .p5-num:hover:not(.empty) {
-  transform: rotate(0deg) skewX(-8deg) scale(1.12);
+  transform: skewX(-8deg) scale(1.05);
   filter: drop-shadow(0 0 6px rgba(230, 0, 18, 0.7));
 }
 
@@ -111,12 +116,16 @@ body {
   color: #3a3a3a;
   text-shadow: none;
 }
+
 .p5-num.past .p5-num-text::after {
   content: "";
   position: absolute;
-  left: 0; right: 0; top: 48%;
-  height: 3px;
-  background: #555;
+  left: -4px;
+  right: -4px;
+  top: 50%;
+  height: 4px;
+  background: #4a4a4a;
+  transform: translateY(-50%);
 }
 
 /* today gets an outline */
@@ -125,15 +134,11 @@ body {
 }
 
 /* selected day: big red slab behind the number */
-.p5-num.selected::before {
-  content: "";
-  position: absolute;
-  inset: -4px -8px 2px -8px;
-  background: #e60012;
-  z-index: -1;
-}
+
 .p5-num.selected .p5-num-text {
+  background: #e60012;
   color: #fff !important;
+  padding: 2px 12px 6px;
   text-shadow: none;
 }
 
@@ -141,12 +146,12 @@ body {
 .p5-num.important::after {
   content: "";
   position: absolute;
-  left: -6px; top: -6px;
-  width: calc(100% + 12px);
+  left: -10px; top: -6px;
+  width: calc(100% + 2px);
   height: calc(100% - 2px);
   border: 3px solid #e60012;
   border-radius: 50%;
-  transform: rotate(-6deg);
+  transform: rotate(-3deg);
   pointer-events: none;
 }
 
@@ -173,19 +178,6 @@ body {
 .mark-day   { background: #ffd400; }
 .mark-night { background: #3aa0ff; }
 
-/* graffiti watermark */
-.p5-graffiti {
-  position: absolute;
-  bottom: 10px;
-  left: 30px;
-  font-family: 'Anton', sans-serif;
-  font-size: 6rem;
-  color: rgba(255, 255, 255, 0.04);
-  transform: skewX(-12deg) rotate(-4deg);
-  pointer-events: none;
-  z-index: 1;
-  letter-spacing: 6px;
-}
 
 /* ============ RIGHT: PANEL ============ */
 .p5-panel {
@@ -193,7 +185,6 @@ body {
   background: #fff;
   color: #0a0a0a;
   padding: 36px 34px;
-  clip-path: polygon(4% 0, 100% 0, 100% 100%, 0% 100%);
   overflow-y: auto;
 }
 
@@ -204,7 +195,7 @@ body {
   font-family: 'Anton', sans-serif;
   font-size: 1.3rem;
   padding: 6px 22px 6px 16px;
-  transform: skewX(-10deg);
+  transform: skewX(-5deg);
   margin-bottom: 26px;
   letter-spacing: 1px;
 }

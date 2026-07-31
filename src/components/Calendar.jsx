@@ -1,6 +1,5 @@
 import PropTypes from "prop-types";
 
-const TILTS = [-4, 3, -2, 5, -6, 2, -3];
 
 function Calendar({ currentMonth, selectedDate, onSelectDate, onMonthChange, todos }) {
   const year = currentMonth.getFullYear();
@@ -53,12 +52,7 @@ function Calendar({ currentMonth, selectedDate, onSelectDate, onMonthChange, tod
       .join(" ");
 
     cells.push(
-      <div
-        key={dateStr}
-        className={classes}
-        style={{ "--tilt": `${TILTS[day % 7]}deg` }}
-        onClick={() => onSelectDate(dateStr)}
-      >
+      <div key={dateStr} className={classes} onClick={() => onSelectDate(dateStr)}>
         <span className="p5-num-text">{day}</span>
 
         {(hasDay || hasNight) && (
@@ -89,7 +83,6 @@ function Calendar({ currentMonth, selectedDate, onSelectDate, onMonthChange, tod
 
       <div className="p5-days">{cells}</div>
 
-      <div className="p5-graffiti">COMMAND</div>
     </div>
   );
 }
