@@ -109,7 +109,7 @@ function DayPanel({ selectedDate, todos, onAdd, onUpdate, onToggle, onDelete }) 
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="ADD A TASK..."
+          placeholder="ADD TASK..."
         />
         <select value={slot} onChange={(e) => setSlot(e.target.value)}>
           <option value="day">DAY</option>
