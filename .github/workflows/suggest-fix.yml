@@ -142,7 +142,7 @@ jobs:
       - name: Open PR with the suggested fix
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           branch: claude-fix/issue-${{ github.event.issue.number }}
           title: "AI-suggested fix for #${{ github.event.issue.number }}"
           body-path: explanation.txt
