@@ -1,0 +1,180 @@
+name: Suggest Fix
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  suggest-fix:
+    if: contains(github.event.issue.title, 'CI failed on')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gather repo context
+        run: |
+          ISSUE_BODY="${{ github.event.issue.body }}"
+
+          # extract file paths mentioned anywhere in the failure summary/logs
+          # (stack traces, "at server/app.js:15", "Cannot find module './x'", etc.)
+          echo "$ISSUE_BODY" | grep -oE '([a-zA-Z0-9_./-]+\.(js|jsx|json|yml|yaml|sql|conf))' \
+            | sort -u > mentioned_files.txt
+
+          echo "--- files mentioned in failure summary ---"
+          cat mentioned_files.txt
+
+          : > context.txt
+
+          # always include the smallest "map" of the repo so Claude knows what exists
+          echo "=== PROJECT STRUCTURE ===" >> context.txt
+          find . -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.yml" -o -name "*.sql" \) \
+            -not -path "*/node_modules/*" -not -path "*/.git/*" >> context.txt
+
+          # pull in any file the error logs actually named
+          while read -r f; do
+            match=$(find . -path "*/node_modules" -prune -o -type f -name "$(basename "$f")" -print | head -1)
+            if [ -n "$match" ]; then
+              echo "=== $match (mentioned in failure) ===" >> context.txt
+              cat "$match" >> context.txt
+            fi
+          done < mentioned_files.txt
+
+          # category fallback based on which job name appears in the issue
+          if echo "$ISSUE_BODY" | grep -qi "test-backend\|build-images.*server\|server"; then
+            for f in server/app.js server/server.js server/db/database.js; do
+              if ! grep -q "=== ./$f " context.txt 2>/dev/null; then
+                echo "=== $f (backend fallback) ===" >> context.txt
+                cat "$f" 2>/dev/null >> context.txt
+              fi
+            done
+          fi
+
+          if echo "$ISSUE_BODY" | grep -qi "test-frontend\|vite\|eslint"; then
+            for f in src/App.jsx src/services/todoService.js eslint.config.js vite.config.js; do
+              if ! grep -q "=== ./$f " context.txt 2>/dev/null; then
+                echo "=== $f (frontend fallback) ===" >> context.txt
+                cat "$f" 2>/dev/null >> context.txt
+              fi
+            done
+          fi
+
+          if echo "$ISSUE_BODY" | grep -qi "deploy\|ssh\|ec2"; then
+            for f in docker-compose.yml .github/workflows/ci.yml; do
+              if ! grep -q "=== ./$f " context.txt 2>/dev/null; then
+                echo "=== $f (deploy fallback) ===" >> context.txt
+                cat "$f" 2>/dev/null >> context.txt
+              fi
+            done
+          fi
+
+          wc -l context.txt
+
+      - name: Ask Claude for a fix
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 - << 'PY'
+          import json, os, urllib.request
+
+          with open("context.txt") as f:
+              context = f.read()[-60000:]
+
+          issue_body = """${{ github.event.issue.body }}"""
+
+          prompt = f"""You are fixing a CI failure in a Node/Express/PostgreSQL + React/Vite
+          todo-calendar app deployed via Docker to AWS EC2.
+
+          Here is the failure summary from the CI issue:
+          {issue_body}
+
+          Here is relevant source code from the repo:
+          {context}
+
+          Propose a fix. Respond ONLY with valid JSON, no markdown fences, no prose outside
+          the JSON, in exactly this shape:
+
+          {{
+            "explanation": "2-4 sentences on the root cause and fix",
+            "files": [
+              {{"path": "server/app.js", "content": "FULL corrected file contents here"}}
+            ]
+          }}
+
+          Only include files that actually need to change. Always give the COMPLETE file
+          content for each one, not a diff or snippet."""
+
+          req = urllib.request.Request(
+              "https://api.anthropic.com/v1/messages",
+              data=json.dumps({
+                  "model": "claude-sonnet-5",
+                  "max_tokens": 8000,
+                  "messages": [{"role": "user", "content": prompt}],
+              }).encode(),
+              headers={
+                  "content-type": "application/json",
+                  "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+                  "anthropic-version": "2023-06-01",
+              },
+          )
+
+          try:
+              with urllib.request.urlopen(req) as r:
+                  data = json.load(r)
+          except urllib.error.HTTPError as e:
+              print("STATUS:", e.code)
+              print("BODY:", e.read().decode())
+              raise
+
+          text = "".join(b.get("text", "") for b in data["content"])
+
+          # strip accidental code fences if the model adds them anyway
+          text = text.strip()
+          if text.startswith("```"):
+              text = text.split("```")[1]
+              if text.startswith("json"):
+                  text = text[4:]
+
+          with open("fix.json", "w") as f:
+              f.write(text)
+          print(text)
+          PY
+
+      - name: Apply proposed changes
+        run: |
+          python3 - << 'PY'
+          import json, os
+
+          with open("fix.json") as f:
+              fix = json.load(f)
+
+          with open("explanation.txt", "w") as f:
+              f.write(fix["explanation"])
+
+          for file in fix["files"]:
+              path = file["path"]
+              os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+              with open(path, "w") as f:
+                  f.write(file["content"])
+              print("Wrote:", path)
+          PY
+
+      - name: Open PR with the suggested fix
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: claude-fix/issue-${{ github.event.issue.number }}
+          title: "AI-suggested fix for #${{ github.event.issue.number }}"
+          body-path: explanation.txt
+          commit-message: "AI-suggested fix for issue #${{ github.event.issue.number }}"
+          labels: ai-suggested
+
+      - name: Link the PR back on the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --body "🤖 Opened a PR with a suggested fix: check the **Pull requests** tab (branch \`claude-fix/issue-${{ github.event.issue.number }}\`). Review before merging."
