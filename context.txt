@@ -1,0 +1,22 @@
+=== PROJECT STRUCTURE ===
+./.github/workflows/ci.yml
+./.github/workflows/suggest-fix.yml
+./eslint.config.js
+./docker-compose.yml
+./server/migrations/002_add_due_date.sql
+./server/migrations/003_add_task_meta.sql
+./server/migrations/001_create_tasks_table.sql
+./server/server.js
+./server/app.js
+./server/__tests__/todos.test.js
+./server/__mocks__/db/database.js
+./server/db/database.js
+./src/services/todoService.js
+./src/App.jsx
+./src/main.jsx
+./src/components/TodoForm.jsx
+./src/components/TodoList.jsx
+./src/components/TodoItem.jsx
+./src/components/Calendar.jsx
+./src/components/DayPanel.jsx
+./vite.config.js

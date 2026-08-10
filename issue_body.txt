@@ -1,0 +1,32 @@
+## Analysis
+
+### 1. Which job failed and at what step
+**Job:** `deploy`
+**Step:** `appleboy/scp-action@v0.1.7` (the file copy step)
+
+### 2. Root cause
+The SCP connection to the EC2 instance timed out on port 22:
+```
+dial tcp ***:22: i/o timeout
+```
+The GitHub Actions runner could not reach the EC2 instance. This is a **network/firewall issue** — the EC2 Security Group inbound rules are not allowing TCP port 22 from GitHub Actions runner IP ranges.
+
+### 3. Specific fix
+In your EC2 Security Group, add an inbound rule allowing **port 22** from GitHub's IP ranges.
+
+Either:
+
+**Option A — Broad (easier):** Allow port 22 from `0.0.0.0/0` if this EC2 is deploy-only and SSH is otherwise locked down via key auth.
+
+**Option B — Precise:** Fetch GitHub's published IP ranges and whitelist them:
+```bash
+curl https://api.github.com/meta | jq '.actions'
+```
+Add those CIDR blocks to the EC2 Security Group inbound rule for port 22.
+
+You can also verify the issue locally:
+```bash
+nc -zv <EC2_IP> 22
+```
+If it hangs, the Security Group is the problem. No changes are needed to the workflow YAML itself.
+[View run](https://github.com/Someshvijay/Todo-app/actions/runs/31395086342)
