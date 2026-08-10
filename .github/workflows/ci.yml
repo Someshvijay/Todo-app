@@ -48,6 +48,7 @@ jobs:
 
   build-images:
     needs: [test-frontend, test-backend]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -89,6 +90,7 @@ jobs:
 
   deploy:
     needs: build-images
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
