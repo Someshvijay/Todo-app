@@ -1,0 +1,349 @@
+=== PROJECT STRUCTURE ===
+./.github/workflows/ci.yml
+./.github/workflows/suggest-fix.yml
+./eslint.config.js
+./docker-compose.yml
+./server/migrations/002_add_due_date.sql
+./server/migrations/003_add_task_meta.sql
+./server/migrations/001_create_tasks_table.sql
+./server/server.js
+./server/app.js
+./server/__tests__/todos.test.js
+./server/__mocks__/db/database.js
+./server/db/database.js
+./src/services/todoService.js
+./src/App.jsx
+./src/main.jsx
+./src/components/TodoForm.jsx
+./src/components/TodoList.jsx
+./src/components/TodoItem.jsx
+./src/components/Calendar.jsx
+./src/components/DayPanel.jsx
+./vite.config.js
+=== ./server/__tests__/todos.test.js ===
+jest.mock("../db/database");
+
+const request = require("supertest");
+const app = require("../app");
+const pool = require("../db/database");
+
+beforeEach(() => {
+  pool.query.mockReset();
+});
+
+describe("GET /api/todos", () => {
+  test("returns 200 and a list of tasks", async () => {
+    const mockTasks = [
+      { id: 1, title: "Buy milk", completed: false },
+      { id: 2, title: "Walk dog", completed: true },
+    ];
+    pool.query.mockResolvedValueOnce({ rows: mockTasks });
+
+    const res = await request(app).get("/api/todos");
+
+    expect(res.status).toBe(999);
+    expect(res.body).toEqual(mockTasks);
+  });
+
+  test("returns 500 if the database query fails", async () => {
+    pool.query.mockRejectedValueOnce(new Error("DB down"));
+
+    const res = await request(app).get("/api/todos");
+
+    expect(res.status).toBe(500);
+    expect(res.body.message).toBe("Failed to fetch tasks");
+  });
+});
+
+describe("GET /api/todos/:id", () => {
+  test("returns 200 and the task when found", async () => {
+    const mockTask = { id: 1, title: "Buy milk", completed: false };
+    pool.query.mockResolvedValueOnce({ rows: [mockTask] });
+
+    const res = await request(app).get("/api/todos/1");
+
+    expect(res.status).toBe(999);
+    expect(res.body).toEqual(mockTask);
+  });
+
+  test("returns 404 when the task doesn't exist", async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app).get("/api/todos/999");
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toBe("Task not found");
+  });
+});
+
+describe("POST /api/todos", () => {
+  test("returns 201 and the created task", async () => {
+    const newTask = { id: 3, title: "Read book", completed: false };
+    pool.query.mockResolvedValueOnce({ rows: [newTask] });
+
+    const res = await request(app)
+      .post("/api/todos")
+      .send({ text: "Read book" });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual(newTask);
+  });
+
+  test("returns 400 when text is missing", async () => {
+    const res = await request(app).post("/api/todos").send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Task title is required");
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  test("returns 400 when text is empty/whitespace", async () => {
+    const res = await request(app).post("/api/todos").send({ text: "   " });
+
+    expect(res.status).toBe(400);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+});
+
+describe("PUT /api/todos/:id", () => {
+  test("returns 200 and the updated task", async () => {
+    const updatedTask = { id: 1, title: "Buy oat milk", completed: true };
+    pool.query.mockResolvedValueOnce({ rows: [updatedTask] });
+
+    const res = await request(app)
+      .put("/api/todos/1")
+      .send({ title: "Buy oat milk", completed: true });
+
+    expect(res.status).toBe(999);
+    expect(res.body).toEqual(updatedTask);
+  });
+
+  test("returns 404 when the task doesn't exist", async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app)
+      .put("/api/todos/999")
+      .send({ title: "Doesn't matter" });
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("PATCH /api/todos/:id/complete", () => {
+  test("returns 200 and toggles completion", async () => {
+    const completedTask = { id: 1, title: "Buy milk", completed: true };
+    pool.query.mockResolvedValueOnce({ rows: [completedTask] });
+
+    const res = await request(app).patch("/api/todos/1/complete");
+
+    expect(res.status).toBe(999);
+    expect(res.body.completed).toBe(true);
+  });
+
+  test("returns 404 when the task doesn't exist", async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app).patch("/api/todos/999/complete");
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("DELETE /api/todos/:id", () => {
+  test("returns 200 and confirms deletion", async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
+    const res = await request(app).delete("/api/todos/1");
+
+    expect(res.status).toBe(999);
+    expect(res.body.message).toBe("Task deleted successfully");
+  });
+
+  test("returns 404 when the task doesn't exist", async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app).delete("/api/todos/999");
+
+    expect(res.status).toBe(404);
+  });
+});=== server/app.js ===
+const express = require("express");
+const cors = require("cors");
+const pool = require("./db/database");
+
+const app = express();
+
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    /\.app\.github\.dev$/,
+    'http://13.207.171.80'
+  ]
+}));
+app.use(express.json());
+
+/*
+  GET ALL TASKS
+*/
+app.get("/api/todos", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM tasks ORDER BY id ASC");
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to fetch tasks" });
+  }
+});
+
+/*
+  GET TASK BY ID
+*/
+app.get("/api/todos/:id", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM tasks WHERE id = $1", [
+      req.params.id,
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to fetch task" });
+  }
+});
+
+/*
+  CREATE TASK
+*/
+app.post("/api/todos", async (req, res) => {
+  try {
+    const { text, date, timeOfDay, isImportant } = req.body;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: "Task title is required" });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO tasks(title, due_date, time_of_day, is_important)
+      VALUES($1, $2, $3, $4)
+      RETURNING *
+      `,
+      [text, date || null, timeOfDay || "day", isImportant || false],
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to create task" });
+  }
+});
+
+/*
+  UPDATE TASK
+*/
+app.put("/api/todos/:id", async (req, res) => {
+  try {
+    const { title, completed, date, timeOfDay, isImportant } = req.body;
+
+    const result = await pool.query(
+      `
+      UPDATE tasks
+      SET
+        title = COALESCE($1, title),
+        completed = COALESCE($2, completed),
+        due_date = COALESCE($3, due_date),
+        time_of_day = COALESCE($4, time_of_day),
+        is_important = COALESCE($5, is_important)
+      WHERE id = $6
+      RETURNING *
+      `,
+      [title, completed, date, timeOfDay, isImportant, req.params.id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to update task" });
+  }
+});
+
+/*
+  MARK TASK COMPLETE
+*/
+/*
+  TOGGLE TASK COMPLETE
+*/
+app.patch("/api/todos/:id/complete", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      UPDATE tasks
+      SET completed = NOT completed
+      WHERE id = $1
+      RETURNING id, title, completed, time_of_day, is_important,
+                TO_CHAR(due_date, 'YYYY-MM-DD') AS due_date
+      `,
+      [req.params.id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to toggle task" });
+  }
+});
+
+/*
+  DELETE TASK
+*/
+app.delete("/api/todos/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "DELETE FROM tasks WHERE id = $1 RETURNING *",
+      [req.params.id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    res.json({ message: "Task deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to delete task" });
+  }
+});
+
+module.exports = app;=== server/server.js ===
+require("dotenv").config();
+const app = require("./app");
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});=== server/db/database.js ===
+const { Pool } = require("pg");
+require("dotenv").config();
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+});
+
+module.exports = pool;

@@ -1,0 +1,27 @@
+## Failure Analysis
+
+**1. Job & Step**
+Job `test-backend` failed at the **`Run npm test --if-present`** step (`npm test` → `jest`).
+
+**2. Root Cause**
+The tests in `server/__tests__/todos.test.js` have incorrect expected status codes. Every "success" assertion expects HTTP **999** instead of a valid HTTP status code:
+
+- Line 21: `expect(res.status).toBe(999)` → received `200`
+- Line 42: `expect(res.status).toBe(999)` → received `200`
+- Line 94: `expect(res.status).toBe(999)` → received `200`
+- Line 116: `expect(res.status).toBe(999)` → received `200`
+- Line 135: `expect(res.status).toBe(999)` → received `200`
+
+The application itself is working correctly — all endpoints return the right responses. The tests are simply asserting against a bogus status code (999 is not a valid HTTP status).
+
+**3. Fix**
+In `server/__tests__/todos.test.js`, replace all instances of `.toBe(999)` with the correct expected HTTP status codes:
+
+| Line | Change |
+|------|--------|
+| 21 | `.toBe(200)` (GET list) |
+| 42 | `.toBe(200)` (GET by id) |
+| 94 | `.toBe(200)` (PUT update) |
+| 116 | `.toBe(200)` (PATCH toggle) |
+| 135 | `.toBe(200)` (DELETE) |
+[View run](https://github.com/Someshvijay/Todo-app/actions/runs/31394972415)
