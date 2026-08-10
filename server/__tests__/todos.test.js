@@ -18,7 +18,7 @@ describe("GET /api/todos", () => {
 
     const res = await request(app).get("/api/todos");
 
-    expect(res.status).toBe(999);
+    expect(res.status).toBe(200);
     expect(res.body).toEqual(mockTasks);
   });
 
@@ -39,7 +39,7 @@ describe("GET /api/todos/:id", () => {
 
     const res = await request(app).get("/api/todos/1");
 
-    expect(res.status).toBe(999);
+    expect(res.status).toBe(200);
     expect(res.body).toEqual(mockTask);
   });
 
@@ -91,7 +91,7 @@ describe("PUT /api/todos/:id", () => {
       .put("/api/todos/1")
       .send({ title: "Buy oat milk", completed: true });
 
-    expect(res.status).toBe(999);
+    expect(res.status).toBe(200);
     expect(res.body).toEqual(updatedTask);
   });
 
@@ -113,7 +113,7 @@ describe("PATCH /api/todos/:id/complete", () => {
 
     const res = await request(app).patch("/api/todos/1/complete");
 
-    expect(res.status).toBe(999);
+    expect(res.status).toBe(200);
     expect(res.body.completed).toBe(true);
   });
 
@@ -132,7 +132,7 @@ describe("DELETE /api/todos/:id", () => {
 
     const res = await request(app).delete("/api/todos/1");
 
-    expect(res.status).toBe(999);
+    expect(res.status).toBe(200);
     expect(res.body.message).toBe("Task deleted successfully");
   });
 
