@@ -16,58 +16,38 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Gather repo context
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          ISSUE_BODY="${{ github.event.issue.body }}"
+          printf '%s' "$ISSUE_BODY" > issue_body.txt
 
-          # extract file paths mentioned anywhere in the failure summary/logs
-          # (stack traces, "at server/app.js:15", "Cannot find module './x'", etc.)
-          echo "$ISSUE_BODY" | grep -oE '([a-zA-Z0-9_./-]+\.(js|jsx|json|yml|yaml|sql|conf))' \
+          grep -oE '([a-zA-Z0-9_./-]+\.(js|jsx|json|yml|yaml|sql|conf))' issue_body.txt \
             | sort -u > mentioned_files.txt
 
-          echo "--- files mentioned in failure summary ---"
-          cat mentioned_files.txt
-
           : > context.txt
-
-          # always include the smallest "map" of the repo so Claude knows what exists
           echo "=== PROJECT STRUCTURE ===" >> context.txt
           find . -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.yml" -o -name "*.sql" \) \
             -not -path "*/node_modules/*" -not -path "*/.git/*" >> context.txt
 
-          # pull in any file the error logs actually named
           while read -r f; do
             match=$(find . -path "*/node_modules" -prune -o -type f -name "$(basename "$f")" -print | head -1)
             if [ -n "$match" ]; then
-              echo "=== $match (mentioned in failure) ===" >> context.txt
+              echo "=== $match ===" >> context.txt
               cat "$match" >> context.txt
             fi
           done < mentioned_files.txt
 
-          # category fallback based on which job name appears in the issue
-          if echo "$ISSUE_BODY" | grep -qi "test-backend\|build-images.*server\|server"; then
+          if grep -qi "test-backend\|server" issue_body.txt; then
             for f in server/app.js server/server.js server/db/database.js; do
-              if ! grep -q "=== ./$f " context.txt 2>/dev/null; then
-                echo "=== $f (backend fallback) ===" >> context.txt
-                cat "$f" 2>/dev/null >> context.txt
-              fi
+              echo "=== $f ===" >> context.txt
+              cat "$f" 2>/dev/null >> context.txt
             done
           fi
 
-          if echo "$ISSUE_BODY" | grep -qi "test-frontend\|vite\|eslint"; then
-            for f in src/App.jsx src/services/todoService.js eslint.config.js vite.config.js; do
-              if ! grep -q "=== ./$f " context.txt 2>/dev/null; then
-                echo "=== $f (frontend fallback) ===" >> context.txt
-                cat "$f" 2>/dev/null >> context.txt
-              fi
-            done
-          fi
-
-          if echo "$ISSUE_BODY" | grep -qi "deploy\|ssh\|ec2"; then
-            for f in docker-compose.yml .github/workflows/ci.yml; do
-              if ! grep -q "=== ./$f " context.txt 2>/dev/null; then
-                echo "=== $f (deploy fallback) ===" >> context.txt
-                cat "$f" 2>/dev/null >> context.txt
-              fi
+          if grep -qi "test-frontend\|vite\|eslint" issue_body.txt; then
+            for f in src/App.jsx src/services/todoService.js eslint.config.js; do
+              echo "=== $f ===" >> context.txt
+              cat "$f" 2>/dev/null >> context.txt
             done
           fi
 
@@ -83,29 +63,29 @@ jobs:
           with open("context.txt") as f:
               context = f.read()[-60000:]
 
-          issue_body = """${{ github.event.issue.body }}"""
+          with open("issue_body.txt") as f:
+              issue_body = f.read()
 
           prompt = f"""You are fixing a CI failure in a Node/Express/PostgreSQL + React/Vite
           todo-calendar app deployed via Docker to AWS EC2.
 
-          Here is the failure summary from the CI issue:
+          Failure summary from the CI issue:
           {issue_body}
 
-          Here is relevant source code from the repo:
+          Relevant source code:
           {context}
 
           Propose a fix. Respond ONLY with valid JSON, no markdown fences, no prose outside
-          the JSON, in exactly this shape:
+          the JSON:
 
           {{
             "explanation": "2-4 sentences on the root cause and fix",
             "files": [
-              {{"path": "server/app.js", "content": "FULL corrected file contents here"}}
+              {{"path": "server/app.js", "content": "FULL corrected file contents"}}
             ]
           }}
 
-          Only include files that actually need to change. Always give the COMPLETE file
-          content for each one, not a diff or snippet."""
+          Only include files that need to change. Give COMPLETE file contents, not diffs."""
 
           req = urllib.request.Request(
               "https://api.anthropic.com/v1/messages",
@@ -129,10 +109,7 @@ jobs:
               print("BODY:", e.read().decode())
               raise
 
-          text = "".join(b.get("text", "") for b in data["content"])
-
-          # strip accidental code fences if the model adds them anyway
-          text = text.strip()
+          text = "".join(b.get("text", "") for b in data["content"]).strip()
           if text.startswith("```"):
               text = text.split("```")[1]
               if text.startswith("json"):

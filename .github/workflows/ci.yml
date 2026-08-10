@@ -206,9 +206,13 @@ jobs:
       - name: Open an issue with the summary
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
         run: |
-          gh issue create \
-            --title "CI failed on ${{ github.sha }}" \
-            --body "$(cat summary.md)
+          {
+            cat summary.md
+            printf '\n'
+            printf '[View run](%s)\n' "$RUN_URL"
+          } > issue_body.md
 
-          [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          gh issue create --title "CI failed on $SHA" --body-file issue_body.md
