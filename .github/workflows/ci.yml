@@ -134,7 +134,7 @@ jobs:
 
       - name: Fetch failed job logs
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
             --jq '.jobs[] | select(.conclusion=="failure") | .id' > failed_ids.txt
@@ -205,7 +205,7 @@ jobs:
 
       - name: Open an issue with the summary
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           gh issue create \
             --title "CI failed on ${{ github.sha }}" \
