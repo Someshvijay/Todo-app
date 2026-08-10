@@ -123,7 +123,10 @@ jobs:
 
   explain-failure:
     needs: [test-frontend, test-backend, build-images, deploy]
-    if: failure()
+    if: >
+      failure() &&
+      !startsWith(github.head_ref, 'claude-fix/') &&
+      !startsWith(github.ref_name, 'claude-fix/')
     runs-on: ubuntu-latest
     permissions:
       contents: read
