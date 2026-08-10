@@ -1,0 +1,26 @@
+## Failure Analysis
+
+**1. Job and Step**
+Job `test-backend` failed at the **`Run npm test --if-present`** step.
+
+**2. Root Cause**
+The test assertions in `server/__tests__/todos.test.js` use a bogus expected status code of `999` instead of `200`. Every failing test follows the same pattern:
+
+```js
+expect(res.status).toBe(999);  // lines 21, 42, 94, 116, 135
+```
+
+The API is returning the correct `200` responses — the tests themselves are wrong. This is not a production code bug; it's a bad commit to the test file.
+
+**3. Specific Fix**
+In `server/__tests__/todos.test.js`, replace all five instances of `.toBe(999)` with `.toBe(200)`:
+
+```js
+// Lines 21, 42, 94, 116, 135 — change:
+expect(res.status).toBe(999);
+// to:
+expect(res.status).toBe(200);
+```
+
+No changes needed to `app.js`, `package.json`, or any workflow config. The CI infrastructure, Docker setup, and Express routes are all functioning correctly.
+[View run](https://github.com/Someshvijay/Todo-app/actions/runs/31395425305)
