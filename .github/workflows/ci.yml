@@ -121,4 +121,94 @@ jobs:
             docker compose up -d
             docker image prune -f
 
-          
+  explain-failure:
+    needs: [test-frontend, test-backend, build-images, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch failed job logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '.jobs[] | select(.conclusion=="failure") | .id' > failed_ids.txt
+
+          : > logs.txt
+          while read -r id; do
+            echo "===== JOB $id =====" >> logs.txt
+            gh api "repos/${{ github.repository }}/actions/jobs/$id/logs" >> logs.txt 2>/dev/null || true
+          done < failed_ids.txt
+
+          # keep the last 400 lines — errors are almost always at the end
+          tail -n 400 logs.txt > logs_trimmed.txt
+          wc -l logs_trimmed.txt
+
+      - name: Summarize with Claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 - << 'PY'
+          import json, os, urllib.request
+
+          with open("logs_trimmed.txt") as f:
+              logs = f.read()[-40000:]
+
+          prompt = f"""These are logs from a failed GitHub Actions run on a Node/React/Postgres app
+          (Vite frontend, Express backend, Docker images pushed to GHCR, deployed to EC2).
+
+          Explain in under 200 words:
+          1. Which job failed and at what step
+          2. The root cause
+          3. The specific fix
+
+          Be concrete — name files, commands, or config keys. Skip anything not relevant to the failure.
+
+          Logs:
+          {logs}"""
+
+          req = urllib.request.Request(
+              "https://api.anthropic.com/v1/messages",
+              data=json.dumps({
+                  "model": "claude-sonnet-4-6",
+                  "max_tokens": 1000,
+                  "messages": [{"role": "user", "content": prompt}],
+              }).encode(),
+              headers={
+                  "content-type": "application/json",
+                  "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+                  "anthropic-version": "2023-06-01",
+              },
+          )
+
+          with urllib.request.urlopen(req) as r:
+              data = json.load(r)
+
+          text = "".join(b.get("text", "") for b in data["content"])
+          with open("summary.md", "w") as f:
+              f.write(text)
+          print(text)
+          PY
+
+      - name: Post summary to job output
+        run: |
+          {
+            echo "## 🔍 AI Failure Summary"
+            echo
+            cat summary.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open an issue with the summary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "CI failed on ${{ github.sha }}" \
+            --body "$(cat summary.md)
+
+          [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
