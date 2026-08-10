@@ -1,0 +1,29 @@
+## Analysis
+
+### 1. Job and Step That Failed
+**Job:** `test-backend`
+**Step:** `Run npm test --if-present` — Jest exited with code 1.
+
+### 2. Root Cause
+The test file `server/__tests__/todos.test.js` has **wrong expected status codes**. Every "success" assertion expects HTTP `999` but the API correctly returns `200` (or `201`). This is a bad value accidentally committed to the test file:
+
+```js
+// Lines 21, 42, 94, 116, 135 — all have this pattern:
+expect(res.status).toBe(999);  // ← should be 200 (or 201 for POST)
+```
+
+The application code itself is working correctly — all mocked DB calls succeed and return proper responses. The tests are simply asserting against an impossible status code.
+
+### 3. Specific Fix
+In `server/__tests__/todos.test.js`, replace every `toBe(999)` with the correct expected status:
+
+| Line | Test | Fix |
+|------|------|-----|
+| 21 | `GET /api/todos` | `toBe(200)` |
+| 42 | `GET /api/todos/:id` | `toBe(200)` |
+| 94 | `PUT /api/todos/:id` | `toBe(200)` |
+| 116 | `PATCH /api/todos/:id/complete` | `toBe(200)` |
+| 135 | `DELETE /api/todos/:id` | `toBe(200)` |
+
+No changes needed to `app.js`, `package.json`, or the workflow YAML.
+[View run](https://github.com/Someshvijay/Todo-app/actions/runs/31395764409)
