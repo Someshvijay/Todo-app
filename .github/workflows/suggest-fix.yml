@@ -138,7 +138,17 @@ jobs:
                   f.write(file["content"])
               print("Wrote:", path)
           PY
-
+      
+      - name: Compose PR body
+        run: |
+          {
+            cat /tmp/explanation.txt
+            printf '\n\n---\n'
+            printf 'Generated in response to #%s\n' "${{ github.event.issue.number }}"
+            printf 'Files changed by the model:\n'
+            python3 -c "import json; [print('- ' + f['path']) for f in json.load(open('/tmp/fix.json'))['files']]"
+          } > /tmp/pr_body.md
+      
       - name: Open PR with the suggested fix
         uses: peter-evans/create-pull-request@v6
         with:
