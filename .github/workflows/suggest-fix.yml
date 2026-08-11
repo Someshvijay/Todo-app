@@ -148,6 +148,7 @@ jobs:
             printf 'Files changed by the model:\n'
             python3 -c "import json; [print('- ' + f['path']) for f in json.load(open('/tmp/fix.json'))['files']]"
           } > /tmp/pr_body.md
+          cat /tmp/pr_body.md
       
       - name: Open PR with the suggested fix
         uses: peter-evans/create-pull-request@v6
@@ -155,7 +156,7 @@ jobs:
           token: ${{ secrets.PAT_TOKEN }}
           branch: claude-fix/issue-${{ github.event.issue.number }}
           title: "AI-suggested fix for #${{ github.event.issue.number }}"
-          body-path: /tmp/explanation.txt
+          body-path: /tmp/pr_body.md
           commit-message: "AI-suggested fix for issue #${{ github.event.issue.number }}"
           labels: ai-suggested
 
