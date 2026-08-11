@@ -18,7 +18,7 @@ describe("GET /api/todos", () => {
 
     const res = await request(app).get("/api/todos");
 
-    expect(res.status).toBe(999);
+    expect(res.status).toBe(200);
     expect(res.body).toEqual(mockTasks);
   });
 
