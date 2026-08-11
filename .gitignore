@@ -28,3 +28,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+#AI Agent
+context.txt
+fix.json
+explanation.txt
+issue_body.txt
+mentioned_files.txt
+comment.txt
+issue_body.md
+pr_comment.md

@@ -19,39 +19,39 @@ jobs:
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          printf '%s' "$ISSUE_BODY" > issue_body.txt
+          printf '%s' "$ISSUE_BODY" > /tmp/issue_body.txt
 
-          grep -oE '([a-zA-Z0-9_./-]+\.(js|jsx|json|yml|yaml|sql|conf))' issue_body.txt \
-            | sort -u > mentioned_files.txt
+          grep -oE '([a-zA-Z0-9_./-]+\.(js|jsx|json|yml|yaml|sql|conf))' /tmp/issue_body.txt \
+            | sort -u > /tmp/mentioned_files.txt
 
-          : > context.txt
-          echo "=== PROJECT STRUCTURE ===" >> context.txt
+          : > /tmp/context.txt
+          echo "=== PROJECT STRUCTURE ===" >> /tmp/context.txt
           find . -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.yml" -o -name "*.sql" \) \
-            -not -path "*/node_modules/*" -not -path "*/.git/*" >> context.txt
+            -not -path "*/node_modules/*" -not -path "*/.git/*" >> /tmp/context.txt
 
           while read -r f; do
             match=$(find . -path "*/node_modules" -prune -o -type f -name "$(basename "$f")" -print | head -1)
             if [ -n "$match" ]; then
-              echo "=== $match ===" >> context.txt
-              cat "$match" >> context.txt
+              echo "=== $match ===" >> /tmp/context.txt
+              cat "$match" >> /tmp/context.txt
             fi
-          done < mentioned_files.txt
+          done < /tmp/mentioned_files.txt
 
-          if grep -qi "test-backend\|server" issue_body.txt; then
+          if grep -qi "test-backend\|server" /tmp/issue_body.txt; then
             for f in server/app.js server/server.js server/db/database.js; do
-              echo "=== $f ===" >> context.txt
-              cat "$f" 2>/dev/null >> context.txt
+              echo "=== $f ===" >> /tmp/context.txt
+              cat "$f" 2>/dev/null >> /tmp/context.txt
             done
           fi
 
-          if grep -qi "test-frontend\|vite\|eslint" issue_body.txt; then
+          if grep -qi "test-frontend\|vite\|eslint" /tmp/issue_body.txt; then
             for f in src/App.jsx src/services/todoService.js eslint.config.js; do
-              echo "=== $f ===" >> context.txt
-              cat "$f" 2>/dev/null >> context.txt
+              echo "=== $f ===" >> /tmp/context.txt
+              cat "$f" 2>/dev/null >> /tmp/context.txt
             done
           fi
 
-          wc -l context.txt
+          wc -l /tmp/context.txt
 
       - name: Ask Claude for a fix
         env:
@@ -60,10 +60,10 @@ jobs:
           python3 - << 'PY'
           import json, os, urllib.request
 
-          with open("context.txt") as f:
+          with open("/tmp/context.txt") as f:
               context = f.read()[-60000:]
 
-          with open("issue_body.txt") as f:
+          with open("/tmp/issue_body.txt") as f:
               issue_body = f.read()
 
           prompt = f"""You are fixing a CI failure in a Node/Express/PostgreSQL + React/Vite
@@ -115,7 +115,7 @@ jobs:
               if text.startswith("json"):
                   text = text[4:]
 
-          with open("fix.json", "w") as f:
+          with open("/tmp/fix.json", "w") as f:
               f.write(text)
           print(text)
           PY
@@ -125,10 +125,10 @@ jobs:
           python3 - << 'PY'
           import json, os
 
-          with open("fix.json") as f:
+          with open("/tmp/fix.json") as f:
               fix = json.load(f)
 
-          with open("explanation.txt", "w") as f:
+          with open("/tmp/explanation.txt", "w") as f:
               f.write(fix["explanation"])
 
           for file in fix["files"]:
@@ -145,7 +145,7 @@ jobs:
           token: ${{ secrets.PAT_TOKEN }}
           branch: claude-fix/issue-${{ github.event.issue.number }}
           title: "AI-suggested fix for #${{ github.event.issue.number }}"
-          body-path: explanation.txt
+          body-path: /tmp/explanation.txt
           commit-message: "AI-suggested fix for issue #${{ github.event.issue.number }}"
           labels: ai-suggested
 
