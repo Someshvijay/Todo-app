@@ -1,0 +1,38 @@
+name: Report Fix Status
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+jobs:
+  report:
+    if: startsWith(github.event.workflow_run.head_branch, 'claude-fix/')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Comment result on the linked issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          ISSUE_NUM="${BRANCH##*-}"
+
+          if [ "$CONCLUSION" = "success" ]; then
+            ICON="✅"
+            VERDICT="CI passed on the suggested fix — safe to review and merge."
+          else
+            ICON="❌"
+            VERDICT="CI still failing on the suggested fix — the diagnosis was probably wrong."
+          fi
+
+          {
+            printf '%s %s\n\n' "$ICON" "$VERDICT"
+            printf '[View run](%s)\n' "$RUN_URL"
+          } > /tmp/status.md
+
+          gh issue comment "$ISSUE_NUM" --body-file /tmp/status.md

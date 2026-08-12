@@ -140,11 +140,13 @@ jobs:
           PY
       
       - name: Compose PR body
+        env:
+          ISSUE_URL: ${{ github.event.issue.html_url }}
         run: |
           {
             cat /tmp/explanation.txt
             printf '\n\n---\n'
-            printf 'Generated in response to #%s\n' "${{ github.event.issue.number }}"
+            printf 'Generated in response to %s\n\n' "$ISSUE_URL"
             printf 'Files changed by the model:\n'
             python3 -c "import json; [print('- ' + f['path']) for f in json.load(open('/tmp/fix.json'))['files']]"
           } > /tmp/pr_body.md
