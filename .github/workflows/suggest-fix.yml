@@ -167,4 +167,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue comment ${{ github.event.issue.number }} \
+            --repo "${{ github.repository }}" \
             --body "🤖 Opened a PR with a suggested fix: check the **Pull requests** tab (branch \`claude-fix/issue-${{ github.event.issue.number }}\`). Review before merging."
