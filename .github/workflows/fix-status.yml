@@ -16,23 +16,25 @@ jobs:
       - name: Comment result on the linked issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
           ISSUE_NUM="${BRANCH##*-}"
+          echo "Branch: $BRANCH -> issue #$ISSUE_NUM, conclusion: $CONCLUSION"
 
           if [ "$CONCLUSION" = "success" ]; then
-            ICON="✅"
+            ICON="white_check_mark"
             VERDICT="CI passed on the suggested fix — safe to review and merge."
           else
-            ICON="❌"
+            ICON="x"
             VERDICT="CI still failing on the suggested fix — the diagnosis was probably wrong."
           fi
 
           {
-            printf '%s %s\n\n' "$ICON" "$VERDICT"
+            printf ':%s: %s\n\n' "$ICON" "$VERDICT"
             printf '[View run](%s)\n' "$RUN_URL"
           } > /tmp/status.md
 
-          gh issue comment "$ISSUE_NUM" --body-file /tmp/status.md
+          gh issue comment "$ISSUE_NUM" --repo "$REPO" --body-file /tmp/status.md
