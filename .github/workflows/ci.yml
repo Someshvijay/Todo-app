@@ -142,17 +142,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
-            --jq '.jobs[] | select(.conclusion=="failure") | .id' > failed_ids.txt
+            --jq '.jobs[] | select(.conclusion=="failure") | .id' > /tmp/failed_ids.txt
 
-          : > logs.txt
+          : > /tmp/logs.txt
           while read -r id; do
-            echo "===== JOB $id =====" >> logs.txt
-            gh api "repos/${{ github.repository }}/actions/jobs/$id/logs" >> logs.txt 2>/dev/null || true
-          done < failed_ids.txt
+            echo "===== JOB $id =====" >> /tmp/logs.txt
+            gh api "repos/${{ github.repository }}/actions/jobs/$id/logs" >> /tmp/logs.txt 2>&1 \
+              || echo "(log fetch failed for job $id)" >> /tmp/logs.txt
+          done < /tmp/failed_ids.txt
 
-          # keep the last 400 lines — errors are almost always at the end
-          tail -n 400 logs.txt > logs_trimmed.txt
-          wc -l logs_trimmed.txt
+          tail -n 400 /tmp/logs.txt > /tmp/logs_trimmed.txt
+
+          if [ ! -s /tmp/logs_trimmed.txt ]; then
+            echo "No logs retrieved — aborting rather than asking for a summary of nothing."
+            exit 1
+          fi
+
+          wc -l /tmp/logs_trimmed.txt
 
       - name: Summarize with Claude
         env:
@@ -161,7 +167,7 @@ jobs:
           python3 - << 'PY'
           import json, os, urllib.request
 
-          with open("logs_trimmed.txt") as f:
+          with open("/tmp/logs_trimmed.txt") as f:
               logs = f.read()[-40000:]
 
           prompt = f"""These are logs from a failed GitHub Actions run on a Node/React/Postgres app
