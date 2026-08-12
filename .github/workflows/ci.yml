@@ -144,17 +144,26 @@ jobs:
           gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
             --jq '.jobs[] | select(.conclusion=="failure") | .id' > /tmp/failed_ids.txt
 
+          echo "Failed job IDs:"
+          cat /tmp/failed_ids.txt
+
           : > /tmp/logs.txt
           while read -r id; do
             echo "===== JOB $id =====" >> /tmp/logs.txt
-            gh api "repos/${{ github.repository }}/actions/jobs/$id/logs" >> /tmp/logs.txt 2>&1 \
-              || echo "(log fetch failed for job $id)" >> /tmp/logs.txt
+            URL=$(gh api -i "repos/${{ github.repository }}/actions/jobs/$id/logs" 2>/dev/null \
+              | grep -i '^location:' | awk '{print $2}' | tr -d '\r')
+            if [ -n "$URL" ]; then
+              curl -sSL "$URL" >> /tmp/logs.txt
+            else
+              gh api "repos/${{ github.repository }}/actions/jobs/$id/logs" >> /tmp/logs.txt 2>&1 \
+                || echo "(log fetch failed for job $id)" >> /tmp/logs.txt
+            fi
           done < /tmp/failed_ids.txt
 
           tail -n 400 /tmp/logs.txt > /tmp/logs_trimmed.txt
 
           if [ ! -s /tmp/logs_trimmed.txt ]; then
-            echo "No logs retrieved — aborting rather than asking for a summary of nothing."
+            echo "No logs retrieved — aborting."
             exit 1
           fi
 
