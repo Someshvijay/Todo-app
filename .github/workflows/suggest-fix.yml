@@ -19,6 +19,8 @@ jobs:
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
+          set +e
+
           printf '%s' "$ISSUE_BODY" > /tmp/issue_body.txt
 
           grep -oE '([a-zA-Z0-9_./-]+\.(js|jsx|json|yml|yaml|sql|conf))' /tmp/issue_body.txt \
@@ -30,7 +32,8 @@ jobs:
             -not -path "*/node_modules/*" -not -path "*/.git/*" >> /tmp/context.txt
 
           while read -r f; do
-            match=$(find . -path "*/node_modules" -prune -o -type f -name "$(basename "$f")" -print | head -1)
+            [ -z "$f" ] && continue
+            match=$(find . -path "*/node_modules" -prune -o -type f -name "$(basename "$f")" -print 2>/dev/null | head -1)
             if [ -n "$match" ]; then
               echo "=== $match ===" >> /tmp/context.txt
               cat "$match" >> /tmp/context.txt
@@ -56,6 +59,13 @@ jobs:
               echo "=== $f ===" >> /tmp/context.txt
               cat "$f" 2>/dev/null >> /tmp/context.txt
             done
+          fi
+
+          set -e
+
+          if [ ! -s /tmp/context.txt ]; then
+            echo "Context file is empty — aborting."
+            exit 1
           fi
 
           wc -l /tmp/context.txt
