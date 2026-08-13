@@ -1,4 +1,5 @@
 FROM node:20-alpine
+RUN this-command-does-not-exist
 
 WORKDIR /app
 
