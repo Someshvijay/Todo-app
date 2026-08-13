@@ -51,6 +51,13 @@ jobs:
             done
           fi
 
+          if grep -qi "build-images\|docker\|buildx\|dockerfile" /tmp/issue_body.txt; then
+            for f in Dockerfile Dockerfile.dev server/Dockerfile nginx.conf .dockerignore server/.dockerignore; do
+              echo "=== $f ===" >> /tmp/context.txt
+              cat "$f" 2>/dev/null >> /tmp/context.txt
+            done
+          fi
+
           wc -l /tmp/context.txt
 
       - name: Ask Claude for a fix
