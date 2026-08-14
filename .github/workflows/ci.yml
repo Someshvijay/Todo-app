@@ -215,6 +215,11 @@ jobs:
 
           : > /tmp/aws_diag.txt
 
+          echo "=== INSTANCE STATE ===" >> /tmp/aws_diag.txt
+          aws ec2 describe-instances --instance-ids "$INSTANCE_ID" \
+            --query 'Reservations[0].Instances[0].[State.Name,PublicIpAddress,LaunchTime]' \
+            --output text >> /tmp/aws_diag.txt 2>&1
+
           echo "=== INSTANCE STATUS ===" >> /tmp/aws_diag.txt
           aws ec2 describe-instance-status --instance-ids "$INSTANCE_ID" \
             --query 'InstanceStatuses[0].[InstanceState.Name,InstanceStatus.Status,SystemStatus.Status]' \
