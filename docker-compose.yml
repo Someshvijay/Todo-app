@@ -24,7 +24,7 @@ services:
       retries: 5
 
   server:
-    image: ghcr.io/someshvijay/todo-app-server:nonexistent-tag
+    image: ghcr.io/someshvijay/todo-app-server:latest
     restart: unless-stopped
     ports:
       - "3000:3000"
