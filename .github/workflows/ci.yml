@@ -189,9 +189,80 @@ jobs:
               echo "Only $RUNNING of 3 services running"
               exit 1
             fi
+  
+  collect-aws-diagnostics:
+    needs: deploy
+    if: failure() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Pull metrics and logs
+        env:
+          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+        run: |
+          set +e
+          START=$(date -u -d '30 minutes ago' +%Y-%m-%dT%H:%M:%S)
+          END=$(date -u +%Y-%m-%dT%H:%M:%S)
+          START_MS=$(date -u -d '30 minutes ago' +%s000)
+
+          : > /tmp/aws_diag.txt
+
+          echo "=== INSTANCE STATUS ===" >> /tmp/aws_diag.txt
+          aws ec2 describe-instance-status --instance-ids "$INSTANCE_ID" \
+            --query 'InstanceStatuses[0].[InstanceState.Name,InstanceStatus.Status,SystemStatus.Status]' \
+            --output text >> /tmp/aws_diag.txt 2>&1
+
+          echo "=== CPU (30 min) ===" >> /tmp/aws_diag.txt
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/EC2 --metric-name CPUUtilization \
+            --dimensions Name=InstanceId,Value="$INSTANCE_ID" \
+            --start-time "$START" --end-time "$END" --period 300 \
+            --statistics Average Maximum --output table >> /tmp/aws_diag.txt 2>&1
+
+          echo "=== MEMORY (30 min) ===" >> /tmp/aws_diag.txt
+          aws cloudwatch get-metric-statistics \
+            --namespace TodoApp --metric-name MemoryUtilization \
+            --dimensions Name=InstanceId,Value="$INSTANCE_ID" \
+            --start-time "$START" --end-time "$END" --period 300 \
+            --statistics Average Maximum --output table >> /tmp/aws_diag.txt 2>&1
+
+          echo "=== DISK (30 min) ===" >> /tmp/aws_diag.txt
+          aws cloudwatch get-metric-statistics \
+            --namespace TodoApp --metric-name DiskUtilization \
+            --dimensions Name=InstanceId,Value="$INSTANCE_ID" \
+            --start-time "$START" --end-time "$END" --period 300 \
+            --statistics Average Maximum --output table >> /tmp/aws_diag.txt 2>&1
+
+          echo "=== CONTAINER LOGS ===" >> /tmp/aws_diag.txt
+          for stream in server client db; do
+            echo "--- $stream ---" >> /tmp/aws_diag.txt
+            aws logs get-log-events \
+              --log-group-name /todo-app/containers \
+              --log-stream-name "$stream" \
+              --start-time "$START_MS" --limit 100 \
+              --query 'events[*].message' --output text >> /tmp/aws_diag.txt 2>&1
+          done
+
+          set -e
+          wc -l /tmp/aws_diag.txt
+
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: aws-diagnostics
+          path: /tmp/aws_diag.txt
+          retention-days: 7
 
   explain-failure:
-    needs: [test-frontend, test-backend, build-images, deploy]
+    needs: [test-frontend, test-backend, build-images, deploy, collect-aws-diagnostics]
     if: >
       failure() &&
       !startsWith(github.head_ref, 'claude-fix/') &&
@@ -235,6 +306,20 @@ jobs:
           fi
 
           wc -l /tmp/logs_trimmed.txt
+      
+      - name: Download AWS diagnostics
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: aws-diagnostics
+          path: /tmp/aws
+
+      - name: Merge into log context
+        run: |
+          if [ -f /tmp/aws/aws_diag.txt ]; then
+            echo "===== AWS DIAGNOSTICS =====" >> /tmp/logs_trimmed.txt
+            cat /tmp/aws/aws_diag.txt >> /tmp/logs_trimmed.txt
+          fi
 
       - name: Summarize with Claude
         env:
