@@ -61,6 +61,13 @@ jobs:
             done
           fi
 
+          if grep -qi "deploy\|ec2\|ssh\|docker compose\|container" /tmp/issue_body.txt; then
+            for f in docker-compose.yml docker-compose.override.yml server/Dockerfile Dockerfile nginx.conf .github/workflows/ci.yml; do
+              echo "=== $f ===" >> /tmp/context.txt
+              cat "$f" 2>/dev/null >> /tmp/context.txt
+            done
+          fi
+
           set -e
 
           if [ ! -s /tmp/context.txt ]; then

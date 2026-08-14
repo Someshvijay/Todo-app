@@ -148,6 +148,7 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             cd ${{ secrets.EC2_PROJECT_PATH }}
 
             cat > server/.env.docker << 'EOF'
@@ -159,6 +160,35 @@ jobs:
             docker compose pull
             docker compose up -d
             docker image prune -f
+
+            echo "=== waiting for containers to settle ==="
+            sleep 15
+
+            echo "=== CONTAINER STATUS ==="
+            docker compose ps
+
+            echo "=== SERVER LOGS ==="
+            docker compose logs server --tail=50
+
+            echo "=== CLIENT LOGS ==="
+            docker compose logs client --tail=30
+
+            echo "=== DB LOGS ==="
+            docker compose logs db --tail=20
+
+            echo "=== DISK ==="
+            df -h /
+
+            echo "=== HEALTH CHECK ==="
+            curl -sf http://localhost:3000/api/todos > /dev/null \
+              && echo "backend responding" \
+              || { echo "BACKEND NOT RESPONDING"; exit 1; }
+
+            RUNNING=$(docker compose ps --status running --format '{{.Service}}' | wc -l)
+            if [ "$RUNNING" -lt 3 ]; then
+              echo "Only $RUNNING of 3 services running"
+              exit 1
+            fi
 
   explain-failure:
     needs: [test-frontend, test-backend, build-images, deploy]
