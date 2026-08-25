@@ -113,7 +113,7 @@ describe("PATCH /api/todos/:id/complete", () => {
 
     const res = await request(app).patch("/api/todos/1/complete");
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(999);
     expect(res.body.completed).toBe(true);
   });
 
